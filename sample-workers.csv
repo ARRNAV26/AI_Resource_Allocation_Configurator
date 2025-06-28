@@ -1,0 +1,4 @@
+WorkerID,WorkerName,Skills,WorkerGroup,MaxLoadPerPhase,HourlyRate
+WORKER_001,John Smith,"python,data-analysis",Senior-Consultants,3,75
+WORKER_002,Jane Doe,"welding,mechanical",Technicians,4,45
+WORKER_003,Mike Johnson,"javascript,web-development",Developers,5,65 

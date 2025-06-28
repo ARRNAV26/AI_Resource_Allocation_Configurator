@@ -1,0 +1,4 @@
+ClientID,ClientName,PriorityLevel,RequestedTaskIDs,ContactEmail,Budget
+CLIENT_001,Acme Corp,5,"TASK_001,TASK_002",contact@acme.com,50000
+CLIENT_002,Global Industries,3,"TASK_003",info@global.com,25000
+CLIENT_003,Tech Solutions,4,"TASK_001,TASK_004",hello@techsolutions.com,75000 

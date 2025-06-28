@@ -1,0 +1,5 @@
+TaskID,TaskName,RequiredSkills,EstimatedDuration,Phase,Priority
+TASK_001,Data Analysis,"python,data-analysis",8,Analysis,4
+TASK_002,Equipment Repair,"welding,mechanical",6,Implementation,3
+TASK_003,Web Development,"javascript,web-development",12,Development,5
+TASK_004,Quality Testing,"testing,qa",4,Testing,2 

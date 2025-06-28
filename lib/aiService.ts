@@ -16,12 +16,6 @@ export class AIService {
 
   private async callGroqAPI(prompt: string, systemPrompt?: string): Promise<string> {
     try {
-      console.log('Debug - GROQ_API_KEY exists:', !!process.env.GROQ_API_KEY);
-      console.log('Debug - API Key length:', process.env.GROQ_API_KEY?.length || 0);
-      console.log('Debug - API Key starts with:', process.env.GROQ_API_KEY?.substring(0, 10) + '...');
-      console.log('Debug - Using model:', this.defaultModel);
-      console.log('Debug - Making API request to Groq...');
-
       const completion = await this.groq.chat.completions.create({
         messages: [
           ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
@@ -32,9 +26,7 @@ export class AIService {
         max_tokens: 2048,
       });
 
-      console.log('Debug - Response received successfully');
       const response = completion.choices[0]?.message?.content || '';
-      console.log('Debug - Response content:', response.substring(0, 200) + '...');
       return response;
     } catch (error) {
       console.error('Groq API call failed:', error);

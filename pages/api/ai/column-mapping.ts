@@ -62,7 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.warn('GROQ_API_KEY not found in environment variables');
       return res.status(500).json({ 
         error: 'Groq API key not configured',
-        fallback: AIService.getFallbackMapping(headers, entity)
+        mapping: createFallbackMapping(headers, entity)
       });
     }
 
@@ -79,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { headers, entity } = req.body;
     if (headers && entity) {
       console.log('Using fallback mapping due to error');
-      const fallbackMapping = AIService.getFallbackMapping(headers, entity);
+      const fallbackMapping = createFallbackMapping(headers, entity);
       return res.status(200).json({ 
         mapping: fallbackMapping,
         warning: 'Using fallback mapping due to AI service error'

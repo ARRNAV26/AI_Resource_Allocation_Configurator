@@ -84,8 +84,8 @@ Examples:
       ...correction,
       originalError: error
     };
-  } catch (error) {
-    console.error('Failed to generate correction for error:', error.id, error);
+  } catch (apiError: unknown) {
+    console.error('Failed to generate correction for error:', error.id, apiError);
     return null;
   }
 } 

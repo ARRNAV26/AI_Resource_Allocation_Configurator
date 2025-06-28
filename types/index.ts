@@ -5,6 +5,7 @@ export interface Client {
   PriorityLevel: number;
   RequestedTaskIDs: string[];
   GroupTag?: string;
+  AttributesJSON?: string;
   ContactEmail?: string;
   ContactPhone?: string;
   Budget?: number;

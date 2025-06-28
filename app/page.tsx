@@ -10,6 +10,7 @@ import { FileUpload } from '@/components/FileUpload';
 import { DataGrid } from '@/components/DataGrid';
 import { ValidationPanel } from '@/components/ValidationPanel';
 import { SearchBar } from '@/components/SearchBar';
+import { SearchResults } from '@/components/SearchResults';
 import { BusinessRulesPanel } from '@/components/BusinessRulesPanel';
 import { PrioritiesPanel } from '@/components/PrioritiesPanel';
 import { ExportButton } from '@/components/ExportButton';
@@ -19,10 +20,13 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Upload, CheckCircle, AlertCircle, Download } from 'lucide-react';
 import { BusinessRule } from '@/types';
+import { useCardExpansion } from '@/lib/utils';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function Home() {
   const [showWelcome, setShowWelcome] = useState(true);
   const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const { handleClick } = useCardExpansion();
 
   const {
     clients,
@@ -153,6 +157,12 @@ export default function Home() {
     }
   };
 
+  // Handle clear search
+  const handleClearSearch = () => {
+    setSearchResults(null);
+    setSearchQuery('');
+  };
+
   // Handle business rules
   const handleAddRule = (rule: BusinessRule) => {
     addRule(rule);
@@ -205,7 +215,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b bg-card">
+      <header className="bg-card">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -237,6 +247,8 @@ export default function Home() {
                 </div>
               )}
               
+              <ThemeToggle />
+              
               {hasData && errorCount === 0 && (
                 <ExportButton />
               )}
@@ -260,53 +272,70 @@ export default function Home() {
               {/* Search Bar */}
               <SearchBar onSearch={handleSearch} isLoading={isLoading} />
               
+              {/* Search Results */}
+              <SearchResults 
+                searchResults={searchResults} 
+                onClear={handleClearSearch}
+              />
+              
               {/* Data Tabs */}
-              <Tabs
-                value={currentTab}
-                onValueChange={(value: string) => setActiveTab(value as 'clients' | 'workers' | 'tasks')}
-              >
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="clients">
-                    Clients ({clients.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="workers">
-                    Workers ({workers.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="tasks">
-                    Tasks ({tasks.length})
-                  </TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="clients" className="mt-6">
-                  <DataGrid 
-                    data={clients}
-                    entity="clients"
-                    searchResults={searchResults}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="workers" className="mt-6">
-                  <DataGrid 
-                    data={workers}
-                    entity="workers"
-                    searchResults={searchResults}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="tasks" className="mt-6">
-                  <DataGrid 
-                    data={tasks}
-                    entity="tasks"
-                    searchResults={searchResults}
-                  />
-                </TabsContent>
-              </Tabs>
+              <div className="space-y-6">
+                <Tabs
+                  value={currentTab}
+                  onValueChange={(value: string) => setActiveTab(value as 'clients' | 'workers' | 'tasks')}
+                >
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="clients">
+                      Clients ({clients.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="workers">
+                      Workers ({workers.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="tasks">
+                      Tasks ({tasks.length})
+                    </TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="clients" className="mt-6">
+                    <div className="max-h-[576px] overflow-y-auto">
+                      <DataGrid 
+                        data={clients}
+                        entity="clients"
+                        searchResults={searchResults}
+                      />
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="workers" className="mt-6">
+                    <div className="max-h-[576px] overflow-y-auto">
+                      <DataGrid 
+                        data={workers}
+                        entity="workers"
+                        searchResults={searchResults}
+                      />
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="tasks" className="mt-6">
+                    <div className="max-h-[576px] overflow-y-auto">
+                      <DataGrid 
+                        data={tasks}
+                        entity="tasks"
+                        searchResults={searchResults}
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
             </div>
 
             {/* Sidebar */}
             <div className="xl:col-span-1 space-y-4">
               {/* File Upload */}
-              <Card>
+              <Card 
+                className="card-expandable"
+                onClick={handleClick}
+              >
                 <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-sm">
                     <Upload className="w-4 h-4" />
@@ -322,27 +351,42 @@ export default function Home() {
               </Card>
 
               {/* Validation Panel */}
-              <ValidationPanel 
-                errors={errors} 
-                clients={clients}
-                workers={workers}
-                tasks={tasks}
-                onRefreshValidation={handleRefreshValidation}
-              />
+              <div
+                className="card-expandable"
+                onClick={handleClick}
+              >
+                <ValidationPanel 
+                  errors={errors} 
+                  clients={clients}
+                  workers={workers}
+                  tasks={tasks}
+                  onRefreshValidation={handleRefreshValidation}
+                />
+              </div>
 
               {/* Business Rules */}
-              <BusinessRulesPanel 
-                rules={rules}
-                onAddRule={handleAddRule}
-                onRemoveRule={handleRemoveRule}
-                onUpdateRule={handleUpdateRule}
-                clients={clients}
-                workers={workers}
-                tasks={tasks}
-              />
+              <div
+                className="card-expandable"
+                onClick={handleClick}
+              >
+                <BusinessRulesPanel 
+                  rules={rules}
+                  onAddRule={handleAddRule}
+                  onRemoveRule={handleRemoveRule}
+                  onUpdateRule={handleUpdateRule}
+                  clients={clients}
+                  workers={workers}
+                  tasks={tasks}
+                />
+              </div>
 
               {/* Priorities */}
-              <PrioritiesPanel priorities={priorities} />
+              <div
+                className="card-expandable"
+                onClick={handleClick}
+              >
+                <PrioritiesPanel priorities={priorities} />
+              </div>
             </div>
           </div>
         )}
@@ -363,65 +407,85 @@ export default function Home() {
 
 // Welcome Screen Component
 function WelcomeScreen({ onFileUpload }: { onFileUpload: (file: File, entity: 'clients' | 'workers' | 'tasks') => void }) {
+  const { handleClick } = useCardExpansion();
+
   return (
-    <div className="max-w-4xl mx-auto text-center space-y-8">
-      <div className="space-y-4">
-        <h1 className="text-4xl font-bold text-primary">
-          Stop fighting with spreadsheets
-        </h1>
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Allo-Ready AI is your intelligent assistant for preparing operational data. 
-          Simply upload your messy client, worker, and task files.
-        </p>
-      </div>
+    <div className="min-h-screen bg-background">
+      {/* Welcome Header */}
+      <header className="border-b bg-card">
+        <div className="container mx-auto px-4 py-4">
+         
+        </div>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-center gap-2">
-              <Upload className="w-5 h-5" />
-              Upload Files
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Drag and drop your CSV or Excel files. Our AI will automatically map columns and detect errors.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="max-w-4xl mx-auto text-center space-y-8 py-12">
+        <div className="space-y-4">
+          <h1 className="text-4xl font-bold text-primary">
+            Stop fighting with spreadsheets
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Allo-Ready AI is your intelligent assistant for preparing operational data. 
+            Simply upload your messy client, worker, and task files.
+          </p>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-center gap-2">
-              <CheckCircle className="w-5 h-5" />
-              Fix Errors
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Get instant feedback on data quality issues and use AI-powered fixes to resolve them quickly.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto">
+          <Card 
+            className="card-expandable"
+            onClick={handleClick}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center justify-center gap-2">
+                <Upload className="w-5 h-5" />
+                Upload Files
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Drag and drop your CSV or Excel files. Our AI will automatically map columns and detect errors.
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-center gap-2">
-              <Download className="w-5 h-5" />
-              Export Package
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Export a perfect, validated data package ready for your allocation and scheduling systems.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card 
+            className="card-expandable"
+            onClick={handleClick}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center justify-center gap-2">
+                <CheckCircle className="w-5 h-5" />
+                Fix Errors
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Get instant feedback on data quality issues and use AI-powered fixes to resolve them quickly.
+              </p>
+            </CardContent>
+          </Card>
 
-      <div className="space-y-4">
-        <h2 className="text-2xl font-semibold">Ready to get started?</h2>
-        <FileUpload onFileUpload={onFileUpload} />
+          <Card 
+            className="card-expandable"
+            onClick={handleClick}
+          >
+            <CardHeader>
+              <CardTitle className="flex items-center justify-center gap-2">
+                <Download className="w-5 h-5" />
+                Export Package
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Export a perfect, validated data package ready for your allocation and scheduling systems.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-2xl font-semibold">Ready to get started?</h2>
+          <FileUpload onFileUpload={onFileUpload} />
+        </div>
       </div>
     </div>
   );

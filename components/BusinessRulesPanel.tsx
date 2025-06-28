@@ -200,7 +200,9 @@ export function BusinessRulesPanel({
       });
 
       if (!response.ok) {
-        throw new Error(`Rule generation failed: ${response.statusText}`);
+        const errorText = await response.text();
+        setSubmitMessage({ type: 'error', message: `Rule generation failed: ${response.statusText} - ${errorText}` });
+        throw new Error(`Rule generation failed: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -211,6 +213,7 @@ export function BusinessRulesPanel({
         setSubmitMessage({ type: 'success', message: 'Rule generated and added successfully!' });
       } else {
         setSubmitMessage({ type: 'error', message: data.error || 'Failed to generate rule' });
+        console.error('Rule generation error:', data.error);
       }
     } catch (error) {
       console.error('Rule generation error:', error);
@@ -309,13 +312,13 @@ export function BusinessRulesPanel({
             )}
             
             {/* Natural Language Rule Creation */}
-            <div className="space-y-2">
+            <div className="space-y-2 bg-background dark:bg-card rounded p-2">
               <label className="text-xs font-medium">Natural Language Rule</label>
               <textarea
                 value={naturalLanguageForm.description}
                 onChange={(e) => setNaturalLanguageForm({ description: e.target.value })}
                 placeholder="Describe your rule in plain English..."
-                className="w-full p-2 text-xs border rounded resize-none"
+                className="w-full p-2 text-xs border rounded resize-none bg-background dark:bg-card text-foreground border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
                 rows={3}
               />
               <Button

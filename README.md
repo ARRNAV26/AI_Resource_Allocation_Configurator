@@ -1,6 +1,6 @@
 # AI Resource Allocation Configurator
 
-A Next.js application that uses AI to help configure and manage resource allocation systems. The application leverages Hugging Face LLM API for intelligent data processing, column mapping, natural language search, and business rule generation.
+A Next.js application that uses AI to help configure and manage resource allocation systems. The application leverages Groq Cloud API for intelligent data processing, column mapping, natural language search, and business rule generation.
 
 ## Features
 
@@ -15,7 +15,7 @@ A Next.js application that uses AI to help configure and manage resource allocat
 
 - **Frontend**: Next.js 14, React 18, TypeScript
 - **UI Components**: Radix UI, Tailwind CSS
-- **AI Integration**: Hugging Face LLM API
+- **AI Integration**: Groq Cloud API
 - **Data Processing**: PapaParse, XLSX
 - **State Management**: Zustand
 - **Data Tables**: TanStack Table
@@ -26,7 +26,7 @@ A Next.js application that uses AI to help configure and manage resource allocat
 
 - Node.js 18+ 
 - npm or yarn
-- Hugging Face API key
+- Groq Cloud API key
 
 ### Installation
 
@@ -44,29 +44,18 @@ npm install
 3. Set up environment variables:
 Create a `.env.local` file in the root directory:
 ```env
-HUGGINGFACE_API_KEY=your_huggingface_api_key_here
-HUGGINGFACE_MODEL=gpt2
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
-### Getting a Hugging Face API Key
+### Getting a Groq Cloud API Key
 
-1. Go to [Hugging Face](https://huggingface.co/)
+1. Go to [Groq Cloud](https://console.groq.com/)
 2. Create an account or sign in
-3. Go to your profile settings
-4. Navigate to "Access Tokens"
-5. Create a new token with appropriate permissions
-6. Copy the token to your `.env.local` file
+3. Navigate to the API Keys section
+4. Create a new API key
+5. Copy the key to your `.env.local` file
 
-### Available Models
-
-The application uses Hugging Face's inference API. You can configure different models by setting the `HUGGINGFACE_MODEL` environment variable. Some recommended models:
-
-- `gpt2` (default - no special access required)
-- `microsoft/DialoGPT-medium`
-- `EleutherAI/gpt-neo-125M`
-- `distilgpt2`
-
-**Note**: Some models like `meta-llama/Llama-2-7b-chat-hf` require special access permissions. The default `gpt2` model is freely available.
+**Note**: Groq Cloud offers fast inference with models like Llama 3. The application uses the `llama3-8b-8192` model by default.
 
 ### Running the Application
 

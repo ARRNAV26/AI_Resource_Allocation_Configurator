@@ -55,5 +55,89 @@
   }
   body {
     @apply bg-background text-foreground;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  html {
+    transition: background-color 0.3s ease;
+  }
+}
+
+@layer components {
+  .card-expandable {
+    @apply cursor-pointer transition-all duration-300;
+  }
+  
+  .card-expanded {
+    @apply fixed z-[1000] transition-all duration-300 ease-in-out;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border-radius: 12px;
+    overflow: auto;
+    background-color: hsl(var(--card));
+  }
+  
+  .card-backdrop {
+    @apply fixed inset-0 z-[999] transition-opacity duration-300 ease-in-out;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+  }
+  
+  .card-close-button {
+    @apply absolute top-2 right-2 w-8 h-8 rounded-full border-none cursor-pointer z-[1001] flex items-center justify-center;
+    background-color: rgba(0, 0, 0, 0.1);
+    color: hsl(var(--muted-foreground));
+    font-size: 20px;
+  }
+  
+  .card-close-button:hover {
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+
+  .dark .card-close-button {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: hsl(var(--muted-foreground));
+  }
+
+  .dark .card-close-button:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Priority slider styling */
+  .slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    outline: none;
+  }
+
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: hsl(var(--primary));
+    cursor: pointer;
+    border: 2px solid hsl(var(--background));
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: hsl(var(--primary));
+    cursor: pointer;
+    border: 2px solid hsl(var(--background));
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .slider:hover::-webkit-slider-thumb {
+    transform: scale(1.1);
+  }
+
+  .slider:hover::-moz-range-thumb {
+    transform: scale(1.1);
   }
 } 

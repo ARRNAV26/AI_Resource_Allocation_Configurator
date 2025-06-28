@@ -135,7 +135,7 @@ export class AIService {
 
     try {
       // Use a more accessible model that doesn't require special access
-      const model = process.env.HUGGINGFACE_MODEL || 'microsoft/DialoGPT-medium';
+      const model = process.env.HUGGINGFACE_MODEL || 'gpt2';
       console.log('Debug - Using model:', model);
       
       const fullPrompt = systemPrompt 

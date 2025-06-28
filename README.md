@@ -45,7 +45,7 @@ npm install
 Create a `.env.local` file in the root directory:
 ```env
 HUGGINGFACE_API_KEY=your_huggingface_api_key_here
-HUGGINGFACE_MODEL=meta-llama/Llama-2-7b-chat-hf
+HUGGINGFACE_MODEL=gpt2
 ```
 
 ### Getting a Hugging Face API Key
@@ -61,10 +61,12 @@ HUGGINGFACE_MODEL=meta-llama/Llama-2-7b-chat-hf
 
 The application uses Hugging Face's inference API. You can configure different models by setting the `HUGGINGFACE_MODEL` environment variable. Some recommended models:
 
-- `meta-llama/Llama-2-7b-chat-hf` (default)
+- `gpt2` (default - no special access required)
 - `microsoft/DialoGPT-medium`
-- `gpt2`
 - `EleutherAI/gpt-neo-125M`
+- `distilgpt2`
+
+**Note**: Some models like `meta-llama/Llama-2-7b-chat-hf` require special access permissions. The default `gpt2` model is freely available.
 
 ### Running the Application
 
@@ -117,8 +119,8 @@ npm run dev
 - `ClientID` (required): Unique identifier
 - `ClientName` (required): Client name
 - `PriorityLevel` (required): Priority 1-5
-- `RequestedTaskIDs`: Comma-separated task IDs
-- `GroupTag`: Group classification
+- `RequestedTaskIDs`: Array of task IDs (must exist in tasks.csv)
+- `GroupTag`: Group classification (must match WorkerGroup in workers.csv)
 - `ContactEmail`: Email address
 - `ContactPhone`: Phone number
 - `Budget`: Budget amount
@@ -127,25 +129,35 @@ npm run dev
 ### Workers
 - `WorkerID` (required): Unique identifier
 - `WorkerName` (required): Worker name
-- `Skills`: Comma-separated skills
-- `AvailableSlots`: Array of phase numbers
+- `Skills`: Array of skills (must cover all RequiredSkills in tasks)
+- `WorkerGroup`: Group classification (must match GroupTag in clients.csv)
 - `MaxLoadPerPhase`: Maximum load per phase
-- `WorkerGroup`: Group classification
-- `QualificationLevel`: Qualification level
 - `HourlyRate`: Hourly rate
+- `Availability`: Array of phase numbers (1-10)
 - `Location`: Location
 
 ### Tasks
 - `TaskID` (required): Unique identifier
 - `TaskName` (required): Task name
-- `Category`: Task category
-- `Duration`: Number of phases
-- `RequiredSkills`: Comma-separated required skills
-- `PreferredPhases`: Preferred phase numbers
-- `MaxConcurrent`: Maximum parallel assignments
-- `Dependencies`: Comma-separated task dependencies
+- `RequiredSkills`: Array of required skills (must exist in worker Skills)
+- `EstimatedDuration`: Number of phases
+- `Phase`: Current phase
+- `PreferredPhases`: Preferred phase numbers (format: "2-4" or "[1,3,5]")
+- `Dependencies`: Array of task IDs (must exist in tasks.csv)
 - `Priority`: Priority level
 - `Cost`: Task cost
+
+## Validation Rules
+
+The application enforces several business rules to ensure data integrity:
+
+1. **Client-Task Validation**: Each RequestedTaskIDs entry must match valid TaskIDs in tasks.csv
+2. **Task-Worker Skill Validation**: Every RequiredSkill must appear in at least one worker's Skills
+3. **Worker-Phase Validation**: AvailableSlots must contain valid phase numbers (1-10)
+4. **Group Tag Validation**: GroupTag in clients must match WorkerGroup in workers
+5. **Priority Level Validation**: Client PriorityLevel must be between 1-5
+6. **Preferred Phases Validation**: Task PreferredPhases must be in valid format (ranges or lists)
+7. **Dependencies Validation**: Task Dependencies must reference existing TaskIDs
 
 ## Contributing
 

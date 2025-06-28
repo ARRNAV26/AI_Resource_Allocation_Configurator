@@ -12,7 +12,7 @@ export function ExportButton() {
   const handleExport = async () => {
     try {
       // Create the export package
-      const packageBlob = FileService.createExportPackage(
+      const packageBlob = await FileService.createExportPackage(
         clients,
         workers,
         tasks,

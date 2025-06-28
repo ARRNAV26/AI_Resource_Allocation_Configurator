@@ -4,6 +4,7 @@ export interface Client {
   ClientName: string;
   PriorityLevel: number;
   RequestedTaskIDs: string[];
+  GroupTag?: string;
   ContactEmail?: string;
   ContactPhone?: string;
   Budget?: number;
@@ -27,6 +28,7 @@ export interface Task {
   RequiredSkills: string[];
   EstimatedDuration: number;
   Phase: string;
+  PreferredPhases?: string | string[];
   Dependencies: string[];
   Priority: number;
   Cost?: number;

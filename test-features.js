@@ -8,11 +8,11 @@ console.log('🧪 Testing AI Resource Allocation Configurator Features...\n');
 console.log('1. Testing Environment Variables...');
 try {
   require('dotenv').config({ path: '.env.local' });
-  const apiKey = process.env.HUGGINGFACE_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (apiKey) {
-    console.log('✅ HUGGINGFACE_API_KEY found:', apiKey.substring(0, 10) + '...');
+    console.log('✅ GROQ_API_KEY found:', apiKey.substring(0, 10) + '...');
   } else {
-    console.log('❌ HUGGINGFACE_API_KEY not found');
+    console.log('❌ GROQ_API_KEY not found');
   }
 } catch (error) {
   console.log('❌ Error loading environment variables:', error.message);
@@ -35,7 +35,7 @@ sampleFiles.forEach(file => {
 console.log('\n3. Testing Package Dependencies...');
 try {
   const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  const requiredDeps = ['@huggingface/inference', 'next', 'react', 'zustand'];
+  const requiredDeps = ['groq-sdk', 'next', 'react', 'zustand'];
   requiredDeps.forEach(dep => {
     if (packageJson.dependencies[dep]) {
       console.log(`✅ ${dep}: ${packageJson.dependencies[dep]}`);
@@ -95,8 +95,8 @@ console.log('- AI Column Mapping: ✅ Implemented');
 console.log('- Natural Language Search: ✅ Implemented');
 console.log('- Business Rules: ✅ Implemented');
 console.log('- Data Export: ✅ Implemented');
-console.log('- Hugging Face Integration: ✅ Implemented');
+console.log('- Groq Cloud Integration: ✅ Implemented');
 console.log('- Responsive UI: ✅ Implemented');
 
 console.log('\n🚀 All core features are implemented and ready for testing!');
-console.log('Start the development server with: npm run dev'); 
+console.log('Start the development server with: npm run dev');

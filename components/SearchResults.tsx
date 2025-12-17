@@ -53,7 +53,7 @@ export function SearchResults({ searchResults, onClear }: SearchResultsProps) {
           </Button>
         </div>
         <div className="text-xs text-muted-foreground">
-          Query: "{searchResults.query}"
+          Query: &ldquo;{searchResults.query}&rdquo;
         </div>
       </CardHeader>
       <CardContent className="pt-0">
@@ -81,4 +81,4 @@ export function SearchResults({ searchResults, onClear }: SearchResultsProps) {
       </CardContent>
     </Card>
   );
-} 
+}

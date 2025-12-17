@@ -2,7 +2,7 @@ import { Groq } from 'groq-sdk';
 
 export class AIService {
   private groq: Groq;
-  private defaultModel = 'llama3-8b-8192';
+  private defaultModel = 'openai/gpt-oss-120b';
 
   constructor() {
     const apiKey = process.env.GROQ_API_KEY;
@@ -55,14 +55,50 @@ export class AIService {
 
     try {
       const response = await this.callGroqAPI(prompt, systemPrompt);
-      // Try to extract JSON from the response
-      const jsonMatch = response.match(/\{.*\}/s);
-      if (jsonMatch) {
-        const mapping = JSON.parse(jsonMatch[0]);
-        return mapping;
-      } else {
-        throw new Error('No valid JSON found in response');
+      console.log('AI Response for mapping:', response.substring(0, 200) + '...');
+
+      // Try multiple strategies to extract valid JSON
+      let mapping: Record<string, string> = {};
+
+      // Strategy 1: Try to parse the entire response as JSON
+      try {
+        mapping = JSON.parse(response.trim());
+        if (typeof mapping === 'object' && mapping !== null) {
+          return mapping;
+        }
+      } catch (e) {
+        // Continue to other strategies
       }
+
+      // Strategy 2: Extract JSON object using regex
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          mapping = JSON.parse(jsonMatch[0]);
+          if (typeof mapping === 'object' && mapping !== null) {
+            return mapping;
+          }
+        } catch (e) {
+          console.error('Failed to parse extracted JSON object:', e);
+        }
+      }
+
+      // Strategy 3: Clean up common JSON issues and retry
+      const cleanedResponse = response
+        .trim()
+        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+        .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":'); // Quote unquoted keys
+
+      try {
+        mapping = JSON.parse(cleanedResponse);
+        if (typeof mapping === 'object' && mapping !== null) {
+          return mapping;
+        }
+      } catch (e) {
+        console.error('Failed to parse cleaned JSON:', e);
+      }
+
+      throw new Error('Could not extract valid JSON object from AI response');
     } catch (error) {
       console.error('Column mapping error:', error);
       // Fallback mapping
@@ -72,33 +108,69 @@ export class AIService {
 
   // Process natural language search query
   async processSearchQuery(query: string, clients: any[], workers: any[], tasks: any[]): Promise<any[]> {
-    const systemPrompt = `You are an expert at searching through resource allocation data using natural language queries. 
+    const systemPrompt = `You are an expert at searching through resource allocation data using natural language queries.
     You must return ONLY a valid JSON array of matching records, no additional text, no explanations, no markdown formatting.
     The response must be parseable JSON starting with [ and ending with ].
-    
+
     For each matching record, include ALL the original fields from the data. Do not modify or summarize the data.`;
 
     const prompt = `Search for "${query}" in this data and return the complete matching records:
-    
+
     Clients: ${JSON.stringify(clients, null, 2)}
     Workers: ${JSON.stringify(workers, null, 2)}
     Tasks: ${JSON.stringify(tasks, null, 2)}
-    
+
     Search criteria: ${query}
-    
+
     Return ONLY a JSON array of complete matching records. Include all fields from the original data.
     Example format: [{"ClientID": "C001", "ClientName": "Example Client", ...}]`;
 
     try {
       const response = await this.callGroqAPI(prompt, systemPrompt);
-      // Try to extract JSON from the response
-      const jsonMatch = response.match(/\[.*\]/s);
-      if (jsonMatch) {
-        const results = JSON.parse(jsonMatch[0]);
-        return Array.isArray(results) ? results : [];
-      } else {
-        throw new Error('No valid JSON array found in response');
+      console.log('AI Response for search:', response.substring(0, 200) + '...');
+
+      // Try multiple strategies to extract valid JSON
+      let results: any[] = [];
+
+      // Strategy 1: Try to parse the entire response as JSON
+      try {
+        results = JSON.parse(response.trim());
+        if (Array.isArray(results)) {
+          return results;
+        }
+      } catch (e) {
+        // Continue to other strategies
       }
+
+      // Strategy 2: Extract JSON array using regex
+      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        try {
+          results = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(results)) {
+            return results;
+          }
+        } catch (e) {
+          console.error('Failed to parse extracted JSON array:', e);
+        }
+      }
+
+      // Strategy 3: Clean up common JSON issues and retry
+      const cleanedResponse = response
+        .trim()
+        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+        .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":'); // Quote unquoted keys
+
+      try {
+        results = JSON.parse(cleanedResponse);
+        if (Array.isArray(results)) {
+          return results;
+        }
+      } catch (e) {
+        console.error('Failed to parse cleaned JSON:', e);
+      }
+
+      throw new Error('Could not extract valid JSON array from AI response');
     } catch (error) {
       console.error('Natural language search error:', error);
       // Fallback to simple text search
@@ -265,31 +337,53 @@ export class AIService {
     const lowerQuery = query.toLowerCase();
     let results: any[] = [];
 
-    // Search across all entities
-    const clientResults = clients.filter(client => 
-      client.ClientName?.toLowerCase().includes(lowerQuery) ||
-      client.ClientID?.toLowerCase().includes(lowerQuery) ||
-      client.ContactEmail?.toLowerCase().includes(lowerQuery) ||
-      client.GroupTag?.toLowerCase().includes(lowerQuery)
-    );
+    console.log('Fallback search triggered for query:', query);
+    console.log('Data available - Clients:', clients.length, 'Workers:', workers.length, 'Tasks:', tasks.length);
 
-    const workerResults = workers.filter(worker => 
-      worker.WorkerName?.toLowerCase().includes(lowerQuery) ||
-      worker.WorkerID?.toLowerCase().includes(lowerQuery) ||
-      worker.Skills?.toLowerCase().includes(lowerQuery) ||
-      worker.WorkerGroup?.toLowerCase().includes(lowerQuery)
-    );
+    // Helper function to search any object for the query
+    const searchObject = (obj: any): boolean => {
+      if (!obj || typeof obj !== 'object') return false;
 
-    const taskResults = tasks.filter(task => 
-      task.TaskName?.toLowerCase().includes(lowerQuery) ||
-      task.TaskID?.toLowerCase().includes(lowerQuery) ||
-      task.RequiredSkills?.toLowerCase().includes(lowerQuery) ||
-      task.GroupTag?.toLowerCase().includes(lowerQuery)
-    );
+      for (const [key, value] of Object.entries(obj)) {
+        if (value && typeof value === 'string' && value.toLowerCase().includes(lowerQuery)) {
+          return true;
+        }
+        if (value && typeof value === 'object') {
+          // Search nested objects/arrays
+          if (Array.isArray(value)) {
+            if (value.some(item => typeof item === 'string' && item.toLowerCase().includes(lowerQuery))) {
+              return true;
+            }
+          } else if (searchObject(value)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    // Search across all entities using comprehensive field search
+    const clientResults = clients.filter(client => {
+      console.log('Checking client:', JSON.stringify(client, null, 2));
+      return searchObject(client);
+    });
+
+    const workerResults = workers.filter(worker => {
+      console.log('Checking worker:', JSON.stringify(worker, null, 2));
+      return searchObject(worker);
+    });
+
+    const taskResults = tasks.filter(task => {
+      console.log('Checking task:', JSON.stringify(task, null, 2));
+      return searchObject(task);
+    });
+
+    console.log('Search results - Clients:', clientResults.length, 'Workers:', workerResults.length, 'Tasks:', taskResults.length);
 
     // Return all matching results
     return [...clientResults, ...workerResults, ...taskResults];
   }
 }
 
-export default new AIService(); 
+const aiService = new AIService();
+export default aiService;

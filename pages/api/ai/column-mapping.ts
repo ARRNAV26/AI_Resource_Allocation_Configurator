@@ -1,44 +1,65 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import AIService from '../../../lib/aiService';
 
+// Mapping rules for fallback column mapping
+type MappingRule = {
+  keywords: string[];
+  field: string;
+};
+
+const clientsMappings: MappingRule[] = [
+  { keywords: ['client', 'id'], field: 'ClientID' },
+  { keywords: ['client', 'name'], field: 'ClientName' },
+  { keywords: ['priority'], field: 'PriorityLevel' },
+  { keywords: ['task', 'id'], field: 'RequestedTaskIDs' },
+  { keywords: ['group'], field: 'GroupTag' },
+  { keywords: ['email'], field: 'ContactEmail' },
+  { keywords: ['phone'], field: 'ContactPhone' },
+  { keywords: ['budget'], field: 'Budget' },
+  { keywords: ['deadline'], field: 'Deadline' },
+];
+
+const workersMappings: MappingRule[] = [
+  { keywords: ['worker', 'id'], field: 'WorkerID' },
+  { keywords: ['worker', 'name'], field: 'WorkerName' },
+  { keywords: ['skill'], field: 'Skills' },
+  { keywords: ['available'], field: 'Availability' },
+  { keywords: ['slot'], field: 'Availability' },
+  { keywords: ['max', 'load'], field: 'MaxLoadPerPhase' },
+  { keywords: ['group'], field: 'WorkerGroup' },
+  { keywords: ['qualification'], field: 'QualificationLevel' },
+  { keywords: ['rate'], field: 'HourlyRate' },
+  { keywords: ['location'], field: 'Location' },
+];
+
+const tasksMappings: MappingRule[] = [
+  { keywords: ['task', 'id'], field: 'TaskID' },
+  { keywords: ['task', 'name'], field: 'TaskName' },
+  { keywords: ['category'], field: 'Category' },
+  { keywords: ['duration'], field: 'EstimatedDuration' },
+  { keywords: ['skill'], field: 'RequiredSkills' },
+  { keywords: ['phase'], field: 'PreferredPhases' },
+  { keywords: ['concurrent'], field: 'MaxConcurrent' },
+  { keywords: ['dependency'], field: 'Dependencies' },
+  { keywords: ['priority'], field: 'Priority' },
+  { keywords: ['cost'], field: 'Cost' },
+];
+
 // Helper function for fallback mapping
 function createFallbackMapping(headers: string[], entity: 'clients' | 'workers' | 'tasks'): any {
   const fallbackMapping: any = {};
+  const rules = entity === 'clients' ? clientsMappings : entity === 'workers' ? workersMappings : tasksMappings;
+
   headers.forEach((header: string) => {
     const lowerHeader = header.toLowerCase();
-    if (entity === 'clients') {
-      if (lowerHeader.includes('client') && lowerHeader.includes('id')) fallbackMapping[header] = 'ClientID';
-      else if (lowerHeader.includes('client') && lowerHeader.includes('name')) fallbackMapping[header] = 'ClientName';
-      else if (lowerHeader.includes('priority')) fallbackMapping[header] = 'PriorityLevel';
-      else if (lowerHeader.includes('task') && lowerHeader.includes('id')) fallbackMapping[header] = 'RequestedTaskIDs';
-      else if (lowerHeader.includes('group')) fallbackMapping[header] = 'GroupTag';
-      else if (lowerHeader.includes('email')) fallbackMapping[header] = 'ContactEmail';
-      else if (lowerHeader.includes('phone')) fallbackMapping[header] = 'ContactPhone';
-      else if (lowerHeader.includes('budget')) fallbackMapping[header] = 'Budget';
-      else if (lowerHeader.includes('deadline')) fallbackMapping[header] = 'Deadline';
-    } else if (entity === 'workers') {
-      if (lowerHeader.includes('worker') && lowerHeader.includes('id')) fallbackMapping[header] = 'WorkerID';
-      else if (lowerHeader.includes('worker') && lowerHeader.includes('name')) fallbackMapping[header] = 'WorkerName';
-      else if (lowerHeader.includes('skill')) fallbackMapping[header] = 'Skills';
-      else if (lowerHeader.includes('available') || lowerHeader.includes('slot')) fallbackMapping[header] = 'Availability';
-      else if (lowerHeader.includes('max') && lowerHeader.includes('load')) fallbackMapping[header] = 'MaxLoadPerPhase';
-      else if (lowerHeader.includes('group')) fallbackMapping[header] = 'WorkerGroup';
-      else if (lowerHeader.includes('qualification')) fallbackMapping[header] = 'QualificationLevel';
-      else if (lowerHeader.includes('rate')) fallbackMapping[header] = 'HourlyRate';
-      else if (lowerHeader.includes('location')) fallbackMapping[header] = 'Location';
-    } else if (entity === 'tasks') {
-      if (lowerHeader.includes('task') && lowerHeader.includes('id')) fallbackMapping[header] = 'TaskID';
-      else if (lowerHeader.includes('task') && lowerHeader.includes('name')) fallbackMapping[header] = 'TaskName';
-      else if (lowerHeader.includes('category')) fallbackMapping[header] = 'Category';
-      else if (lowerHeader.includes('duration')) fallbackMapping[header] = 'EstimatedDuration';
-      else if (lowerHeader.includes('skill')) fallbackMapping[header] = 'RequiredSkills';
-      else if (lowerHeader.includes('phase')) fallbackMapping[header] = 'PreferredPhases';
-      else if (lowerHeader.includes('concurrent')) fallbackMapping[header] = 'MaxConcurrent';
-      else if (lowerHeader.includes('dependency')) fallbackMapping[header] = 'Dependencies';
-      else if (lowerHeader.includes('priority')) fallbackMapping[header] = 'Priority';
-      else if (lowerHeader.includes('cost')) fallbackMapping[header] = 'Cost';
+    for (const rule of rules) {
+      if (rule.keywords.every(kw => lowerHeader.includes(kw))) {
+        fallbackMapping[header] = rule.field;
+        break;
+      }
     }
   });
+
   return fallbackMapping;
 }
 
@@ -88,4 +109,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     return res.status(500).json({ error: 'Column mapping failed' });
   }
-} 
+}

@@ -1,7 +1,5 @@
 # Data Alchemist: Forge Your Own AI Resource‑Allocation Configurator.
 
-A Next.js application that uses AI to help configure and manage resource allocation systems. The application leverages Groq Cloud API for intelligent data processing, column mapping, natural language search, and business rule generation.
-
  I was lost in a tangle of spreadsheets—client lists here, worker details there, and task plans everywhere and needed a hero to bring order out of chaos. That’s where the Data Alchemist comes in:
  An AI enabled Next.js web-app that:
 

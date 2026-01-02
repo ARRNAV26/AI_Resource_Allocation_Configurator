@@ -5,7 +5,7 @@ A Next.js application that uses AI to help configure and manage resource allocat
  I was lost in a tangle of spreadsheets—client lists here, worker details there, and task plans everywhere and needed a hero to bring order out of chaos. That’s where the Data Alchemist comes in:
  An AI enabled Next.js web-app that:
 
-● Lets users upload CSV or XLSX fi les for clients, workers, and tasks data
+● Lets users upload CSV or XLSX files for clients, workers, and tasks data
 
 ● Shows the data in an easily editable grid, so users can fi x errors as they go
 
@@ -17,8 +17,9 @@ A Next.js application that uses AI to help configure and manage resource allocat
 
 ● Gives an option to export cleaned up data and a rules.json files, ready for the next stage.
 
+
 Use-Case Summary:
-Think of an online helper that tidies up messy spreadsheets for people who’re not very hands-on with tech. You upload your raw CSV or Excel files, and the system’s AI quickly checks for mistakes and shows easy-to-read warnings. You can search for rooms with natural language. You can fi x problems right inside the table with one click. If you need rules, you just type them in plain sentences, and the AI turns them into proper settings. A simple validator panel tells you what’s wrong and how to fi x it. Sliders let you choose what matters most, such as keeping costs low or fi nishing work fast, and you instantly see how those choices change the plan. When every light is green, you press Export and get a clean CSV fi le plus a rules fi le that downstream allocation tools can use. In short: drop in messy data, have AI features to interact with the data, let the AI clean and check it, set your rules in plain English, and download a neat package ready for the next steps.
+Think of an online helper that tidies up messy spreadsheets for people who’re not very hands-on with tech. You upload your raw CSV or Excel files, and the system’s AI quickly checks for mistakes and shows easy-to-read warnings. You can search for rooms with natural language. You can fix problems right inside the table with one click. If you need rules, you just type them in plain sentences, and the AI turns them into proper settings. A simple validator panel tells you what’s wrong and how to fix it. Sliders let you choose what matters most, such as keeping costs low or finishing work fast, and you instantly see how those choices change the plan. When every light is green, you press Export and get a clean CSV fi le plus a rules file that downstream allocation tools can use. In short: drop in messy data, have AI features to interact with the data, let the AI clean and check it, set your rules in plain English, and download a neat package ready for the next steps.
 
 ## Features
 

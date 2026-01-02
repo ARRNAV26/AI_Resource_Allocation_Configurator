@@ -4,6 +4,7 @@ A Next.js application that uses AI to help configure and manage resource allocat
 
  I was lost in a tangle of spreadsheets—client lists here, worker details there, and task plans everywhere. We needed a hero to bring order out of chaos. That’s where you come in: you are the Data Alchemist.
 Your mission, should you choose to accept it, is to build a AI enabled Next.js web-app that:
+
 ● Lets users upload CSV or XLSX fi les for clients, workers, and tasks data
 
 ● Shows the data in an easily editable grid, so users can fi x errors as they go

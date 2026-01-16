@@ -1,274 +1,391 @@
-import { ColumnMapping } from '@/types';
+import { Groq } from 'groq-sdk';
 
 export class AIService {
-  // private static readonly DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
-  // private static readonly DEEPSEEK_MODEL = 'deepseek-chat';
+  private groq: Groq;
+  private defaultModel = 'openai/gpt-oss-120b';
 
-  // Map columns using AI
-  static async mapColumns(headers: string[], entity: 'clients' | 'workers' | 'tasks'): Promise<ColumnMapping> {
+  constructor() {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      console.warn('GROQ_API_KEY not found in environment variables');
+    }
+    this.groq = new Groq({
+      apiKey: apiKey || '',
+    });
+  }
+
+  private async callGroqAPI(prompt: string, systemPrompt?: string): Promise<string> {
     try {
-      const response = await fetch('/api/ai/column-mapping', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ headers, entity }),
+      const completion = await this.groq.chat.completions.create({
+        messages: [
+          ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+          { role: 'user' as const, content: prompt }
+        ],
+        model: this.defaultModel,
+        temperature: 0.1,
+        max_tokens: 2048,
       });
 
-      if (!response.ok) {
-        throw new Error(`Column mapping failed: ${response.statusText}`);
+      const response = completion.choices[0]?.message?.content || '';
+      return response;
+    } catch (error) {
+      console.error('Groq API call failed:', error);
+      throw new Error(`Groq API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Map columns using AI
+  async mapColumns(headers: string[], entity: 'clients' | 'workers' | 'tasks'): Promise<Record<string, string>> {
+    const systemPrompt = `You are an expert at mapping CSV column headers to standardized field names for resource allocation systems. 
+    You must return ONLY a valid JSON object with the mapping, no additional text, no explanations, no markdown formatting.
+    The response must be parseable JSON starting with { and ending with }.`;
+
+    const prompt = `Map these CSV headers for ${entity} to standardized field names:
+    Headers: ${headers.join(', ')}
+    
+    Expected fields for ${entity}:
+    - ClientID/WorkerID/TaskID (unique identifier)
+    - Name (client/worker/task name)
+    - PriorityLevel (1-5, where 1 is highest)
+    - Skills/RequestedTaskIDs/RequiredSkills (comma-separated)
+    - GroupTag (categorical grouping)
+    - AttributesJSON (additional JSON data)
+    
+    Return ONLY a JSON object like this: {"header1": "field1", "header2": "field2"}`;
+
+    try {
+      const response = await this.callGroqAPI(prompt, systemPrompt);
+      console.log('AI Response for mapping:', response.substring(0, 200) + '...');
+
+      // Try multiple strategies to extract valid JSON
+      let mapping: Record<string, string> = {};
+
+      // Strategy 1: Try to parse the entire response as JSON
+      try {
+        mapping = JSON.parse(response.trim());
+        if (typeof mapping === 'object' && mapping !== null) {
+          return mapping;
+        }
+      } catch (e) {
+        // Continue to other strategies
       }
 
-      const data = await response.json();
-      return data.mapping;
+      // Strategy 2: Extract JSON object using regex
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          mapping = JSON.parse(jsonMatch[0]);
+          if (typeof mapping === 'object' && mapping !== null) {
+            return mapping;
+          }
+        } catch (e) {
+          console.error('Failed to parse extracted JSON object:', e);
+        }
+      }
+
+      // Strategy 3: Clean up common JSON issues and retry
+      const cleanedResponse = response
+        .trim()
+        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+        .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":'); // Quote unquoted keys
+
+      try {
+        mapping = JSON.parse(cleanedResponse);
+        if (typeof mapping === 'object' && mapping !== null) {
+          return mapping;
+        }
+      } catch (e) {
+        console.error('Failed to parse cleaned JSON:', e);
+      }
+
+      throw new Error('Could not extract valid JSON object from AI response');
     } catch (error) {
       console.error('Column mapping error:', error);
-      // Fallback to simple keyword matching
-      return this.fallbackColumnMapping(headers, entity);
+      // Fallback mapping
+      return this.getFallbackMapping(headers, entity);
     }
   }
 
   // Process natural language search query
-  static async processSearchQuery(query: string, clients: any[], workers: any[], tasks: any[]): Promise<any> {
-    try {
-      const response = await fetch('/api/ai/natural-language-search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query, clients, workers, tasks }),
-      });
+  async processSearchQuery(query: string, clients: any[], workers: any[], tasks: any[]): Promise<any[]> {
+    const systemPrompt = `You are an expert at searching through resource allocation data using natural language queries.
+    You must return ONLY a valid JSON array of matching records, no additional text, no explanations, no markdown formatting.
+    The response must be parseable JSON starting with [ and ending with ].
 
-      if (!response.ok) {
-        throw new Error(`Search failed: ${response.statusText}`);
+    For each matching record, include ALL the original fields from the data. Do not modify or summarize the data.`;
+
+    const prompt = `Search for "${query}" in this data and return the complete matching records:
+
+    Clients: ${JSON.stringify(clients, null, 2)}
+    Workers: ${JSON.stringify(workers, null, 2)}
+    Tasks: ${JSON.stringify(tasks, null, 2)}
+
+    Search criteria: ${query}
+
+    Return ONLY a JSON array of complete matching records. Include all fields from the original data.
+    Example format: [{"ClientID": "C001", "ClientName": "Example Client", ...}]`;
+
+    try {
+      const response = await this.callGroqAPI(prompt, systemPrompt);
+      console.log('AI Response for search:', response.substring(0, 200) + '...');
+
+      // Try multiple strategies to extract valid JSON
+      let results: any[] = [];
+
+      // Strategy 1: Try to parse the entire response as JSON
+      try {
+        results = JSON.parse(response.trim());
+        if (Array.isArray(results)) {
+          return results;
+        }
+      } catch (e) {
+        // Continue to other strategies
       }
 
-      const data = await response.json();
-      return data;
+      // Strategy 2: Extract JSON array using regex
+      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        try {
+          results = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(results)) {
+            return results;
+          }
+        } catch (e) {
+          console.error('Failed to parse extracted JSON array:', e);
+        }
+      }
+
+      // Strategy 3: Clean up common JSON issues and retry
+      const cleanedResponse = response
+        .trim()
+        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+        .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":'); // Quote unquoted keys
+
+      try {
+        results = JSON.parse(cleanedResponse);
+        if (Array.isArray(results)) {
+          return results;
+        }
+      } catch (e) {
+        console.error('Failed to parse cleaned JSON:', e);
+      }
+
+      throw new Error('Could not extract valid JSON array from AI response');
     } catch (error) {
-      console.error('Search error:', error);
+      console.error('Natural language search error:', error);
       // Fallback to simple text search
       return this.fallbackSearch(query, clients, workers, tasks);
     }
   }
 
   // Generate data corrections
-  static async generateCorrections(errors: any[], clients: any[], workers: any[], tasks: any[]): Promise<any[]> {
+  async generateCorrections(errors: any[], clients: any[], workers: any[], tasks: any[]): Promise<any[]> {
+    const systemPrompt = `You are an expert at correcting data quality issues in resource allocation datasets. 
+    You must return ONLY a valid JSON array of corrected data, no additional text, no explanations, no markdown formatting.
+    The response must be parseable JSON starting with [ and ending with ].`;
+
+    const prompt = `Correct these data quality issues for this data:
+    Issues: ${errors.join(', ')}
+    
+    Current data: ${JSON.stringify(clients, null, 2)}
+    ${JSON.stringify(workers, null, 2)}
+    ${JSON.stringify(tasks, null, 2)}
+    
+    Return ONLY a JSON array of corrected records like this: [{"id": "1", "corrected_field": "value"}]`;
+
     try {
-      const response = await fetch('/api/ai/data-corrections', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ errors, clients, workers, tasks }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Corrections failed: ${response.statusText}`);
+      const response = await this.callGroqAPI(prompt, systemPrompt);
+      // Try to extract JSON from the response
+      const jsonMatch = response.match(/\[.*\]/s);
+      if (jsonMatch) {
+        const correctedData = JSON.parse(jsonMatch[0]);
+        return Array.isArray(correctedData) ? correctedData : [];
+      } else {
+        throw new Error('No valid JSON array found in response');
       }
-
-      const data = await response.json();
-      return data.corrections;
     } catch (error) {
-      console.error('Corrections error:', error);
-      return [];
+      console.error('Data correction error:', error);
+      return []; // Return empty array if correction fails
     }
   }
 
   // Generate business rules from natural language
-  static async generateRule(description: string, clients: any[], workers: any[], tasks: any[], existingRules: any[]): Promise<any> {
+  async generateRule(description: string, clients: any[], workers: any[], tasks: any[], existingRules: any[]): Promise<any> {
+    const systemPrompt = `You are an expert at generating business rules for resource allocation systems. 
+    You must return ONLY a valid JSON array of rule strings, no additional text, no explanations, no markdown formatting.
+    The response must be parseable JSON starting with [ and ending with ].`;
+
+    const prompt = `Generate business rules for this resource allocation data:
+    Description: ${description}
+    Clients: ${JSON.stringify(clients, null, 2)}
+    Workers: ${JSON.stringify(workers, null, 2)}
+    Tasks: ${JSON.stringify(tasks, null, 2)}
+    
+    Focus on:
+    - Priority-based allocation
+    - Skill matching
+    - Group constraints
+    - Capacity limits
+    - Quality assurance
+    
+    Return ONLY a JSON array of rule strings like this: ["Rule 1", "Rule 2"]`;
+
     try {
-      const response = await fetch('/api/rules/generate-rules', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ description, clients, workers, tasks, existingRules }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Rule generation failed: ${response.statusText}`);
+      const response = await this.callGroqAPI(prompt, systemPrompt);
+      // Try to extract JSON from the response
+      const jsonMatch = response.match(/\[.*\]/s);
+      if (jsonMatch) {
+        const rules = JSON.parse(jsonMatch[0]);
+        return Array.isArray(rules) ? rules : [];
+      } else {
+        throw new Error('No valid JSON array found in response');
       }
-
-      const data = await response.json();
-      return data;
     } catch (error) {
-      console.error('Rule generation error:', error);
+      console.error('Business rules generation error:', error);
       return null;
     }
   }
 
   // Get rule recommendations
-  static async getRuleRecommendations(clients: any[], workers: any[], tasks: any[], existingRules: any[]): Promise<any> {
+  async getRuleRecommendations(clients: any[], workers: any[], tasks: any[], existingRules: any[]): Promise<any> {
+    const systemPrompt = `You are an expert at recommending business rules for resource allocation systems. 
+    You must return ONLY a valid JSON array of recommendation strings, no additional text, no explanations, no markdown formatting.
+    The response must be parseable JSON starting with [ and ending with ].`;
+
+    const prompt = `Analyze this data and recommend business rules:
+    Clients: ${JSON.stringify(clients, null, 2)}
+    Workers: ${JSON.stringify(workers, null, 2)}
+    Tasks: ${JSON.stringify(tasks, null, 2)}
+    
+    Consider:
+    - Data patterns and anomalies
+    - Potential conflicts
+    - Optimization opportunities
+    - Risk mitigation
+    
+    Return ONLY a JSON array of recommendation strings like this: ["Recommendation 1", "Recommendation 2"]`;
+
     try {
-      const response = await fetch('/api/rules/rule-recommendations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ clients, workers, tasks, existingRules }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Recommendations failed: ${response.statusText}`);
+      const response = await this.callGroqAPI(prompt, systemPrompt);
+      // Try to extract JSON from the response
+      const jsonMatch = response.match(/\[.*\]/s);
+      if (jsonMatch) {
+        const recommendations = JSON.parse(jsonMatch[0]);
+        return Array.isArray(recommendations) ? recommendations : [];
+      } else {
+        throw new Error('No valid JSON array found in response');
       }
-
-      const data = await response.json();
-      return data;
     } catch (error) {
-      console.error('Recommendations error:', error);
+      console.error('Rule recommendations error:', error);
       return { recommendations: [], summary: { totalRecommendations: 0 } };
     }
   }
 
-  // Hugging Face API call helper
-  static async callHuggingFaceAPI(prompt: string, systemPrompt?: string): Promise<string> {
-    const apiKey = process.env.HUGGINGFACE_API_KEY;
-    console.log('Debug - HUGGINGFACE_API_KEY exists:', !!apiKey);
-    console.log('Debug - API Key length:', apiKey ? apiKey.length : 0);
-    console.log('Debug - API Key starts with:', apiKey ? apiKey.substring(0, 10) + '...' : 'undefined');
-    
-    if (!apiKey) {
-      console.warn('Hugging Face API key not found, using fallback');
-      return '';
-    }
-
-    try {
-      // Use a more accessible model that doesn't require special access
-      const model = process.env.HUGGINGFACE_MODEL || 'microsoft/DialoGPT-medium';
-      console.log('Debug - Using model:', model);
-      
-      const fullPrompt = systemPrompt 
-        ? `${systemPrompt}\n\n${prompt}`
-        : prompt;
-
-      console.log('Debug - Making API request to Hugging Face...');
-      const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inputs: fullPrompt,
-          parameters: {
-            max_new_tokens: 2048,
-            temperature: 0.7,
-            top_p: 0.95,
-            do_sample: true,
-            return_full_text: false
-          }
-        }),
-      });
-
-      console.log('Debug - Response status:', response.status);
-      console.log('Debug - Response ok:', response.ok);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Debug - Error response:', errorData);
-        throw new Error(`Hugging Face API error: ${response.status} ${response.statusText} - ${errorData.error || ''}`);
+  private getFallbackMapping(headers: string[], entity: 'clients' | 'workers' | 'tasks'): Record<string, string> {
+    const mappings: Record<string, Record<string, string>> = {
+      clients: {
+        'ClientID': 'ClientID',
+        'ClientName': 'ClientName',
+        'PriorityLevel': 'PriorityLevel',
+        'RequestedTaskIDs': 'RequestedTaskIDs',
+        'GroupTag': 'GroupTag',
+        'AttributesJSON': 'AttributesJSON'
+      },
+      workers: {
+        'WorkerID': 'WorkerID',
+        'WorkerName': 'WorkerName',
+        'Skills': 'Skills',
+        'AvailableSlots': 'AvailableSlots',
+        'MaxLoadPerPhase': 'MaxLoadPerPhase',
+        'WorkerGroup': 'WorkerGroup',
+        'QualificationLevel': 'QualificationLevel'
+      },
+      tasks: {
+        'TaskID': 'TaskID',
+        'TaskName': 'TaskName',
+        'Category': 'Category',
+        'Duration': 'Duration',
+        'RequiredSkills': 'RequiredSkills',
+        'PreferredPhases': 'PreferredPhases',
+        'MaxConcurrent': 'MaxConcurrent'
       }
+    };
 
-      const data = await response.json();
-      console.log('Debug - Response data type:', typeof data);
-      console.log('Debug - Response data keys:', Object.keys(data));
-      
-      // Handle different response formats from Hugging Face
-      if (Array.isArray(data) && data.length > 0) {
-        const result = data[0].generated_text || '';
-        console.log('Debug - Array response, result length:', result.length);
-        return result;
-      } else if (typeof data === 'string') {
-        console.log('Debug - String response, length:', data.length);
-        return data;
-      } else if (data.generated_text) {
-        console.log('Debug - Object response with generated_text, length:', data.generated_text.length);
-        return data.generated_text;
-      }
-      
-      console.log('Debug - No valid response format found');
-      return '';
-    } catch (error) {
-      console.error('Hugging Face API call failed:', error);
-      throw error;
-    }
-  }
+    const entityMapping = mappings[entity] || {};
+    const result: Record<string, string> = {};
 
-  // Fallback methods for when AI is not available
-  private static fallbackColumnMapping(headers: string[], entity: 'clients' | 'workers' | 'tasks'): ColumnMapping {
-    const mapping: ColumnMapping = {};
-    
     headers.forEach(header => {
-      const lowerHeader = header.toLowerCase();
-      
-      if (entity === 'clients') {
-        if (lowerHeader.includes('client') && lowerHeader.includes('id')) mapping[header] = 'ClientID';
-        else if (lowerHeader.includes('client') && lowerHeader.includes('name')) mapping[header] = 'ClientName';
-        else if (lowerHeader.includes('priority')) mapping[header] = 'PriorityLevel';
-        else if (lowerHeader.includes('task') && lowerHeader.includes('id')) mapping[header] = 'RequestedTaskIDs';
-        else if (lowerHeader.includes('group')) mapping[header] = 'GroupTag';
-        else if (lowerHeader.includes('email')) mapping[header] = 'ContactEmail';
-        else if (lowerHeader.includes('phone')) mapping[header] = 'ContactPhone';
-        else if (lowerHeader.includes('budget')) mapping[header] = 'Budget';
-        else if (lowerHeader.includes('deadline')) mapping[header] = 'Deadline';
-      } else if (entity === 'workers') {
-        if (lowerHeader.includes('worker') && lowerHeader.includes('id')) mapping[header] = 'WorkerID';
-        else if (lowerHeader.includes('worker') && lowerHeader.includes('name')) mapping[header] = 'WorkerName';
-        else if (lowerHeader.includes('skill')) mapping[header] = 'Skills';
-        else if (lowerHeader.includes('available') || lowerHeader.includes('slot')) mapping[header] = 'Availability';
-        else if (lowerHeader.includes('max') && lowerHeader.includes('load')) mapping[header] = 'MaxLoadPerPhase';
-        else if (lowerHeader.includes('group')) mapping[header] = 'WorkerGroup';
-        else if (lowerHeader.includes('qualification')) mapping[header] = 'QualificationLevel';
-        else if (lowerHeader.includes('rate')) mapping[header] = 'HourlyRate';
-        else if (lowerHeader.includes('location')) mapping[header] = 'Location';
-      } else if (entity === 'tasks') {
-        if (lowerHeader.includes('task') && lowerHeader.includes('id')) mapping[header] = 'TaskID';
-        else if (lowerHeader.includes('task') && lowerHeader.includes('name')) mapping[header] = 'TaskName';
-        else if (lowerHeader.includes('category')) mapping[header] = 'Category';
-        else if (lowerHeader.includes('duration')) mapping[header] = 'EstimatedDuration';
-        else if (lowerHeader.includes('skill')) mapping[header] = 'RequiredSkills';
-        else if (lowerHeader.includes('phase')) mapping[header] = 'PreferredPhases';
-        else if (lowerHeader.includes('concurrent')) mapping[header] = 'MaxConcurrent';
-        else if (lowerHeader.includes('dependency')) mapping[header] = 'Dependencies';
-        else if (lowerHeader.includes('priority')) mapping[header] = 'Priority';
-        else if (lowerHeader.includes('cost')) mapping[header] = 'Cost';
+      const normalizedHeader = header.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      // Find best match
+      for (const [key, value] of Object.entries(entityMapping)) {
+        const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (normalizedHeader.includes(normalizedKey) || normalizedKey.includes(normalizedHeader)) {
+          result[header] = value;
+          break;
+        }
+      }
+
+      // If no match found, use original header
+      if (!result[header]) {
+        result[header] = header;
       }
     });
-    
-    return mapping;
+
+    return result;
   }
 
-  private static fallbackSearch(query: string, clients: any[], workers: any[], tasks: any[]): any {
+  private fallbackSearch(query: string, clients: any[], workers: any[], tasks: any[]): any[] {
     const lowerQuery = query.toLowerCase();
     let results: any[] = [];
-    let entity = 'clients';
 
-    // Simple keyword-based search
-    if (lowerQuery.includes('client')) {
-      entity = 'clients';
-      results = clients.filter(client => 
-        client.ClientName?.toLowerCase().includes(lowerQuery) ||
-        client.ClientID?.toLowerCase().includes(lowerQuery)
-      );
-    } else if (lowerQuery.includes('worker')) {
-      entity = 'workers';
-      results = workers.filter(worker => 
-        worker.WorkerName?.toLowerCase().includes(lowerQuery) ||
-        worker.WorkerID?.toLowerCase().includes(lowerQuery)
-      );
-    } else if (lowerQuery.includes('task')) {
-      entity = 'tasks';
-      results = tasks.filter(task => 
-        task.TaskName?.toLowerCase().includes(lowerQuery) ||
-        task.TaskID?.toLowerCase().includes(lowerQuery)
-      );
-    }
+    console.log('Fallback search triggered for query:', query);
+    console.log('Data available - Clients:', clients.length, 'Workers:', workers.length, 'Tasks:', tasks.length);
 
-    return {
-      entity,
-      rowIds: results.map(item => item[`${entity.slice(0, -1)}ID`]),
-      query
+    // Helper function to search any object for the query
+    const searchObject = (obj: any): boolean => {
+      if (!obj || typeof obj !== 'object') return false;
+
+      for (const [key, value] of Object.entries(obj)) {
+        if (value && typeof value === 'string' && value.toLowerCase().includes(lowerQuery)) {
+          return true;
+        }
+        if (value && typeof value === 'object') {
+          // Search nested objects/arrays
+          if (Array.isArray(value)) {
+            if (value.some(item => typeof item === 'string' && item.toLowerCase().includes(lowerQuery))) {
+              return true;
+            }
+          } else if (searchObject(value)) {
+            return true;
+          }
+        }
+      }
+      return false;
     };
+
+    // Search across all entities using comprehensive field search
+    const clientResults = clients.filter(client => {
+      console.log('Checking client:', JSON.stringify(client, null, 2));
+      return searchObject(client);
+    });
+
+    const workerResults = workers.filter(worker => {
+      console.log('Checking worker:', JSON.stringify(worker, null, 2));
+      return searchObject(worker);
+    });
+
+    const taskResults = tasks.filter(task => {
+      console.log('Checking task:', JSON.stringify(task, null, 2));
+      return searchObject(task);
+    });
+
+    console.log('Search results - Clients:', clientResults.length, 'Workers:', workerResults.length, 'Tasks:', taskResults.length);
+
+    // Return all matching results
+    return [...clientResults, ...workerResults, ...taskResults];
   }
-} 
+}
+
+const aiService = new AIService();
+export default aiService;

@@ -4,32 +4,28 @@ export interface Client {
   ClientName: string;
   PriorityLevel: number;
   RequestedTaskIDs: string[];
-  ContactEmail?: string;
-  ContactPhone?: string;
-  Budget?: number;
-  Deadline?: string;
+  GroupTag?: string;
+  AttributesJSON?: string;
 }
 
 export interface Worker {
   WorkerID: string;
   WorkerName: string;
   Skills: string[];
-  WorkerGroup: string;
+  AvailableSlots: number[];
   MaxLoadPerPhase: number;
-  HourlyRate: number;
-  Availability: string[];
-  Location?: string;
+  WorkerGroup: string;
+  QualificationLevel: number;
 }
 
 export interface Task {
   TaskID: string;
   TaskName: string;
+  Category: string;
+  Duration: number;
   RequiredSkills: string[];
-  EstimatedDuration: number;
-  Phase: string;
-  Dependencies: string[];
-  Priority: number;
-  Cost?: number;
+  PreferredPhases: number[] | string;
+  MaxConcurrent: number;
 }
 
 // Validation error types
@@ -185,4 +181,4 @@ export interface AIRuleResponse {
   ruleType: string;
   parameters: any;
   description: string;
-} 
+}

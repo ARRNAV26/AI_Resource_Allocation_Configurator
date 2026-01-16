@@ -78,9 +78,9 @@ const initialState: AppState = {
   errors: [],
   rules: [],
   priorities: {
-    clientPriorityFulfillment: 50,
-    workerWorkLifeBalance: 50,
-    costEfficiency: 50,
+    clientPriorityFulfillment: 0,
+    workerWorkLifeBalance: 0,
+    costEfficiency: 0,
   },
   activeTab: 'clients',
   searchQuery: '',
@@ -165,4 +165,4 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   
   // Utility actions
   reset: () => set(initialState),
-})); 
+}));

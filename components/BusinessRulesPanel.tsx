@@ -29,16 +29,20 @@ interface BusinessRulesPanelProps {
   clients: any[];
   workers: any[];
   tasks: any[];
+  onClose?: () => void;
+  isFullscreen?: boolean;
 }
 
-export function BusinessRulesPanel({ 
-  rules, 
-  onAddRule, 
-  onRemoveRule, 
+export function BusinessRulesPanel({
+  rules,
+  onAddRule,
+  onRemoveRule,
   onUpdateRule,
   clients,
   workers,
-  tasks
+  tasks,
+  onClose,
+  isFullscreen = false
 }: BusinessRulesPanelProps) {
   const [activeTab, setActiveTab] = useState('rules');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -200,7 +204,9 @@ export function BusinessRulesPanel({
       });
 
       if (!response.ok) {
-        throw new Error(`Rule generation failed: ${response.statusText}`);
+        const errorText = await response.text();
+        setSubmitMessage({ type: 'error', message: `Rule generation failed: ${response.statusText} - ${errorText}` });
+        throw new Error(`Rule generation failed: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -211,6 +217,7 @@ export function BusinessRulesPanel({
         setSubmitMessage({ type: 'success', message: 'Rule generated and added successfully!' });
       } else {
         setSubmitMessage({ type: 'error', message: data.error || 'Failed to generate rule' });
+        console.error('Rule generation error:', data.error);
       }
     } catch (error) {
       console.error('Rule generation error:', error);
@@ -253,11 +260,12 @@ export function BusinessRulesPanel({
       </CardHeader>
       <CardContent className="pt-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-8">
+          <TabsList className="grid w-full grid-cols-3 h-8">
             <TabsTrigger value="rules" className="text-xs">Rules</TabsTrigger>
             <TabsTrigger value="create" className="text-xs">Create</TabsTrigger>
+            <TabsTrigger value="ai" className="text-xs">AI</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="rules" className="mt-3">
             {rules.length === 0 ? (
               <div className="text-center text-muted-foreground py-4 text-xs">
@@ -299,7 +307,7 @@ export function BusinessRulesPanel({
               </div>
             )}
           </TabsContent>
-          
+
           <TabsContent value="create" className="mt-3 space-y-3">
             {submitMessage && (
               <Alert variant={submitMessage.type === 'error' ? 'destructive' : 'default'} className="py-2">
@@ -307,15 +315,202 @@ export function BusinessRulesPanel({
                 <AlertDescription className="text-xs">{submitMessage.message}</AlertDescription>
               </Alert>
             )}
-            
+
+            <Tabs value="corun" className="w-full">
+              <TabsList className="grid w-full grid-cols-4 h-7">
+                <TabsTrigger value="corun" className="text-xs">Co-Run</TabsTrigger>
+                <TabsTrigger value="slot" className="text-xs">Slot</TabsTrigger>
+                <TabsTrigger value="load" className="text-xs">Load</TabsTrigger>
+                <TabsTrigger value="phase" className="text-xs">Phase</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="corun" className="mt-2">
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Rule name"
+                    value={coRunForm.name}
+                    onChange={(e) => setCoRunForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded"
+                  />
+                  <textarea
+                    placeholder="Description"
+                    value={coRunForm.description}
+                    onChange={(e) => setCoRunForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded resize-none"
+                    rows={2}
+                  />
+                  <select
+                    multiple
+                    value={coRunForm.tasks}
+                    onChange={(e) => {
+                      const selected = Array.from(e.target.selectedOptions, option => option.value);
+                      setCoRunForm(prev => ({ ...prev, tasks: selected }));
+                    }}
+                    className="w-full p-2 text-xs border rounded"
+                  >
+                    {tasks.map(task => (
+                      <option key={task.TaskID} value={task.TaskID}>
+                        {task.TaskName} ({task.TaskID})
+                      </option>
+                    ))}
+                  </select>
+                  <Button onClick={handleAddCoRunRule} size="sm" className="w-full h-6 text-xs">
+                    Add Co-Run Rule
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="slot" className="mt-2">
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Rule name"
+                    value={slotRestrictionForm.name}
+                    onChange={(e) => setSlotRestrictionForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded"
+                  />
+                  <textarea
+                    placeholder="Description"
+                    value={slotRestrictionForm.description}
+                    onChange={(e) => setSlotRestrictionForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded resize-none"
+                    rows={2}
+                  />
+                  <select
+                    value={slotRestrictionForm.groupType}
+                    onChange={(e) => setSlotRestrictionForm(prev => ({ ...prev, groupType: e.target.value as 'client' | 'worker' }))}
+                    className="w-full p-2 text-xs border rounded"
+                  >
+                    <option value="client">Client Group</option>
+                    <option value="worker">Worker Group</option>
+                  </select>
+                  <select
+                    value={slotRestrictionForm.groupName}
+                    onChange={(e) => setSlotRestrictionForm(prev => ({ ...prev, groupName: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded"
+                  >
+                    <option value="">Select group...</option>
+                    {(slotRestrictionForm.groupType === 'client' ? [...new Set(clients.map(c => c.GroupTag).filter(Boolean))] : [...new Set(workers.map(w => w.WorkerGroup))]).map(group => (
+                      <option key={group} value={group}>{group}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="Min common slots"
+                    value={slotRestrictionForm.minSlots}
+                    onChange={(e) => setSlotRestrictionForm(prev => ({ ...prev, minSlots: parseInt(e.target.value) || 2 }))}
+                    className="w-full p-2 text-xs border rounded"
+                    min="1"
+                  />
+                  <Button onClick={handleAddSlotRestrictionRule} size="sm" className="w-full h-6 text-xs">
+                    Add Slot Restriction Rule
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="load" className="mt-2">
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Rule name"
+                    value={loadLimitForm.name}
+                    onChange={(e) => setLoadLimitForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded"
+                  />
+                  <textarea
+                    placeholder="Description"
+                    value={loadLimitForm.description}
+                    onChange={(e) => setLoadLimitForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded resize-none"
+                    rows={2}
+                  />
+                  <select
+                    value={loadLimitForm.workerGroup}
+                    onChange={(e) => setLoadLimitForm(prev => ({ ...prev, workerGroup: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded"
+                  >
+                    <option value="">Select worker group...</option>
+                    {[...new Set(workers.map(w => w.WorkerGroup))].map(group => (
+                      <option key={group} value={group}>{group}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="Max slots per phase"
+                    value={loadLimitForm.maxSlotsPerPhase}
+                    onChange={(e) => setLoadLimitForm(prev => ({ ...prev, maxSlotsPerPhase: parseInt(e.target.value) || 5 }))}
+                    className="w-full p-2 text-xs border rounded"
+                    min="1"
+                  />
+                  <Button onClick={handleAddLoadLimitRule} size="sm" className="w-full h-6 text-xs">
+                    Add Load Limit Rule
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="phase" className="mt-2">
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Rule name"
+                    value={phaseWindowForm.name}
+                    onChange={(e) => setPhaseWindowForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded"
+                  />
+                  <textarea
+                    placeholder="Description"
+                    value={phaseWindowForm.description}
+                    onChange={(e) => setPhaseWindowForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded resize-none"
+                    rows={2}
+                  />
+                  <select
+                    value={phaseWindowForm.taskId}
+                    onChange={(e) => setPhaseWindowForm(prev => ({ ...prev, taskId: e.target.value }))}
+                    className="w-full p-2 text-xs border rounded"
+                  >
+                    <option value="">Select task...</option>
+                    {tasks.map(task => (
+                      <option key={task.TaskID} value={task.TaskID}>
+                        {task.TaskName} ({task.TaskID})
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Allowed phases (e.g., 1,2,3 or 1-3)"
+                    value={phaseWindowForm.allowedPhases.join(',')}
+                    onChange={(e) => {
+                      const phases = e.target.value.split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+                      setPhaseWindowForm(prev => ({ ...prev, allowedPhases: phases }));
+                    }}
+                    className="w-full p-2 text-xs border rounded"
+                  />
+                  <Button onClick={handleAddPhaseWindowRule} size="sm" className="w-full h-6 text-xs">
+                    Add Phase Window Rule
+                  </Button>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+
+          <TabsContent value="ai" className="mt-3 space-y-3">
+            {submitMessage && (
+              <Alert variant={submitMessage.type === 'error' ? 'destructive' : 'default'} className="py-2">
+                <AlertCircle className="w-3 h-3" />
+                <AlertDescription className="text-xs">{submitMessage.message}</AlertDescription>
+              </Alert>
+            )}
+
             {/* Natural Language Rule Creation */}
-            <div className="space-y-2">
+            <div className="space-y-2 bg-background dark:bg-card rounded p-2">
               <label className="text-xs font-medium">Natural Language Rule</label>
               <textarea
                 value={naturalLanguageForm.description}
                 onChange={(e) => setNaturalLanguageForm({ description: e.target.value })}
                 placeholder="Describe your rule in plain English..."
-                className="w-full p-2 text-xs border rounded resize-none"
+                className="w-full p-2 text-xs border rounded resize-none bg-background dark:bg-card text-foreground border-border focus:outline-none focus:ring-2 focus:ring-primary/20"
                 rows={3}
               />
               <Button
@@ -342,4 +537,4 @@ export function BusinessRulesPanel({
       </CardContent>
     </Card>
   );
-} 
+}

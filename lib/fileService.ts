@@ -109,10 +109,8 @@ export class FileService {
       ClientName: data.ClientName || '',
       PriorityLevel: this.parseNumber(data.PriorityLevel, 3),
       RequestedTaskIDs: this.parseArray(data.RequestedTaskIDs),
-      ContactEmail: data.ContactEmail || undefined,
-      ContactPhone: data.ContactPhone || undefined,
-      Budget: this.parseNumber(data.Budget),
-      Deadline: data.Deadline || undefined,
+      GroupTag: data.GroupTag || undefined,
+      AttributesJSON: data.AttributesJSON || undefined,
     };
   }
 
@@ -121,11 +119,10 @@ export class FileService {
       WorkerID: data.WorkerID || `WORKER_${index + 1}`,
       WorkerName: data.WorkerName || '',
       Skills: this.parseArray(data.Skills),
-      WorkerGroup: data.WorkerGroup || 'Default',
+      AvailableSlots: this.parseArray(data.AvailableSlots).map(s => parseInt(s)).filter(n => !isNaN(n)),
       MaxLoadPerPhase: this.parseNumber(data.MaxLoadPerPhase, 5),
-      HourlyRate: this.parseNumber(data.HourlyRate, 50),
-      Availability: this.parseArray(data.Availability),
-      Location: data.Location || undefined,
+      WorkerGroup: data.WorkerGroup || 'Default',
+      QualificationLevel: this.parseNumber(data.QualificationLevel, 3),
     };
   }
 
@@ -133,12 +130,11 @@ export class FileService {
     return {
       TaskID: data.TaskID || `TASK_${index + 1}`,
       TaskName: data.TaskName || '',
+      Category: data.Category || 'General',
+      Duration: this.parseNumber(data.Duration, 8),
       RequiredSkills: this.parseArray(data.RequiredSkills),
-      EstimatedDuration: this.parseNumber(data.EstimatedDuration, 8),
-      Phase: data.Phase || 'Planning',
-      Dependencies: this.parseArray(data.Dependencies),
-      Priority: this.parseNumber(data.Priority, 3),
-      Cost: this.parseNumber(data.Cost),
+      PreferredPhases: data.PreferredPhases || [],
+      MaxConcurrent: this.parseNumber(data.MaxConcurrent, 1),
     };
   }
 
@@ -221,11 +217,80 @@ export class FileService {
       }
 
       const data = await response.json();
+
+      // Check for ambiguities in the mapping
+      const ambiguities = this.detectAmbiguities(data.mapping, headers, entity);
+      if (ambiguities.length > 0) {
+        throw new Error(`Ambiguous mappings detected: ${ambiguities.join(', ')}`);
+      }
+
       return data.mapping;
     } catch (error) {
       console.error('Column mapping error:', error);
       // Fallback to simple keyword matching
-      return this.fallbackColumnMapping(headers, entity);
+      const fallbackMapping = this.fallbackColumnMapping(headers, entity);
+
+      // Check fallback for ambiguities
+      const ambiguities = this.detectAmbiguities(fallbackMapping, headers, entity);
+      if (ambiguities.length > 0) {
+        // Return mapping but mark as needing user review
+        console.warn('Fallback mapping has ambiguities:', ambiguities);
+      }
+
+      return fallbackMapping;
+    }
+  }
+
+  // Detect ambiguous mappings
+  private static detectAmbiguities(mapping: ColumnMapping, headers: string[], entity: 'clients' | 'workers' | 'tasks'): string[] {
+    const ambiguities: string[] = [];
+    const targetFields = new Set(Object.values(mapping));
+
+    // Check for multiple headers mapping to same field
+    const fieldToHeaders = new Map<string, string[]>();
+    Object.entries(mapping).forEach(([header, field]) => {
+      if (!fieldToHeaders.has(field)) {
+        fieldToHeaders.set(field, []);
+      }
+      fieldToHeaders.get(field)!.push(header);
+    });
+
+    fieldToHeaders.forEach((headers, field) => {
+      if (headers.length > 1) {
+        ambiguities.push(`Multiple headers map to ${field}: ${headers.join(', ')}`);
+      }
+    });
+
+    // Check for unmapped headers that could potentially map to multiple fields
+    const unmappedHeaders = headers.filter(h => !mapping[h] || mapping[h] === h);
+    const entityMappings = this.getEntityFieldMappings(entity);
+
+    unmappedHeaders.forEach(header => {
+      const possibleFields = entityMappings.filter(field => {
+        const lowerHeader = header.toLowerCase();
+        const lowerField = field.toLowerCase();
+        return lowerHeader.includes(lowerField) || lowerField.includes(lowerHeader);
+      });
+
+      if (possibleFields.length > 1) {
+        ambiguities.push(`Header "${header}" could map to multiple fields: ${possibleFields.join(', ')}`);
+      }
+    });
+
+    return ambiguities;
+  }
+
+  // Get expected fields for an entity
+  private static getEntityFieldMappings(entity: 'clients' | 'workers' | 'tasks'): string[] {
+    switch (entity) {
+      case 'clients':
+        return ['ClientID', 'ClientName', 'PriorityLevel', 'RequestedTaskIDs', 'GroupTag', 'AttributesJSON'];
+      case 'workers':
+        return ['WorkerID', 'WorkerName', 'Skills', 'AvailableSlots', 'MaxLoadPerPhase', 'WorkerGroup', 'QualificationLevel'];
+      case 'tasks':
+        return ['TaskID', 'TaskName', 'Category', 'Duration', 'RequiredSkills', 'PreferredPhases', 'MaxConcurrent'];
+      default:
+        return [];
     }
   }
 
@@ -242,31 +307,23 @@ export class FileService {
         else if (lowerHeader.includes('priority')) mapping[header] = 'PriorityLevel';
         else if (lowerHeader.includes('task') && lowerHeader.includes('id')) mapping[header] = 'RequestedTaskIDs';
         else if (lowerHeader.includes('group')) mapping[header] = 'GroupTag';
-        else if (lowerHeader.includes('email')) mapping[header] = 'ContactEmail';
-        else if (lowerHeader.includes('phone')) mapping[header] = 'ContactPhone';
-        else if (lowerHeader.includes('budget')) mapping[header] = 'Budget';
-        else if (lowerHeader.includes('deadline')) mapping[header] = 'Deadline';
+        else if (lowerHeader.includes('attribute')) mapping[header] = 'AttributesJSON';
       } else if (entity === 'workers') {
         if (lowerHeader.includes('worker') && lowerHeader.includes('id')) mapping[header] = 'WorkerID';
         else if (lowerHeader.includes('worker') && lowerHeader.includes('name')) mapping[header] = 'WorkerName';
         else if (lowerHeader.includes('skill')) mapping[header] = 'Skills';
-        else if (lowerHeader.includes('available') || lowerHeader.includes('slot')) mapping[header] = 'Availability';
+        else if (lowerHeader.includes('available') || lowerHeader.includes('slot')) mapping[header] = 'AvailableSlots';
         else if (lowerHeader.includes('max') && lowerHeader.includes('load')) mapping[header] = 'MaxLoadPerPhase';
         else if (lowerHeader.includes('group')) mapping[header] = 'WorkerGroup';
         else if (lowerHeader.includes('qualification')) mapping[header] = 'QualificationLevel';
-        else if (lowerHeader.includes('rate')) mapping[header] = 'HourlyRate';
-        else if (lowerHeader.includes('location')) mapping[header] = 'Location';
       } else if (entity === 'tasks') {
         if (lowerHeader.includes('task') && lowerHeader.includes('id')) mapping[header] = 'TaskID';
         else if (lowerHeader.includes('task') && lowerHeader.includes('name')) mapping[header] = 'TaskName';
         else if (lowerHeader.includes('category')) mapping[header] = 'Category';
-        else if (lowerHeader.includes('duration')) mapping[header] = 'EstimatedDuration';
+        else if (lowerHeader.includes('duration')) mapping[header] = 'Duration';
         else if (lowerHeader.includes('skill')) mapping[header] = 'RequiredSkills';
         else if (lowerHeader.includes('phase')) mapping[header] = 'PreferredPhases';
         else if (lowerHeader.includes('concurrent')) mapping[header] = 'MaxConcurrent';
-        else if (lowerHeader.includes('dependency')) mapping[header] = 'Dependencies';
-        else if (lowerHeader.includes('priority')) mapping[header] = 'Priority';
-        else if (lowerHeader.includes('cost')) mapping[header] = 'Cost';
       }
     });
     
@@ -314,4 +371,4 @@ export class FileService {
       throw error;
     }
   }
-} 
+}

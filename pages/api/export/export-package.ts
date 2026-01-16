@@ -9,6 +9,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { clients, workers, tasks, rules, priorities } = req.body;
 
+    // Perform allocation
+    const allocationResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/allocation/allocate-resources`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clients, workers, tasks, rules, priorities })
+    });
+
+    if (!allocationResponse.ok) {
+      throw new Error('Allocation failed');
+    }
+
+    const allocationResult = await allocationResponse.json();
+
     // Create workbook with multiple sheets
     const workbook = XLSX.utils.book_new();
 
@@ -44,6 +57,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       XLSX.utils.book_append_sheet(workbook, prioritiesSheet, 'Priorities');
     }
 
+    // Add allocation results
+    if (allocationResult.assignments && allocationResult.assignments.length > 0) {
+      const assignmentsSheet = XLSX.utils.json_to_sheet(allocationResult.assignments);
+      XLSX.utils.book_append_sheet(workbook, assignmentsSheet, 'Allocations');
+    }
+
+    if (allocationResult.metrics) {
+      const metricsData = Object.entries(allocationResult.metrics).map(([key, value]) => ({
+        Metric: key,
+        Value: value
+      }));
+      const metricsSheet = XLSX.utils.json_to_sheet(metricsData);
+      XLSX.utils.book_append_sheet(workbook, metricsSheet, 'Metrics');
+    }
+
+    if (allocationResult.unassignedTasks && allocationResult.unassignedTasks.length > 0) {
+      const unassignedSheet = XLSX.utils.json_to_sheet(
+        allocationResult.unassignedTasks.map((taskId: string) => ({ TaskID: taskId }))
+      );
+      XLSX.utils.book_append_sheet(workbook, unassignedSheet, 'UnassignedTasks');
+    }
+
+    if (allocationResult.violations && allocationResult.violations.length > 0) {
+      const violationsSheet = XLSX.utils.json_to_sheet(
+        allocationResult.violations.map((v: any) => ({
+          RuleID: v.rule.id,
+          RuleName: v.rule.name,
+          Description: v.description
+        }))
+      );
+      XLSX.utils.book_append_sheet(workbook, violationsSheet, 'Violations');
+    }
+
     // Generate Excel file
     const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
@@ -55,9 +101,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).send(excelBuffer);
   } catch (error: any) {
     console.error('Export error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to export package',
-      details: error.message 
+      details: error.message
     });
   }
-} 
+}

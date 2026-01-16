@@ -1,6 +1,5 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { AIService } from '@/lib/aiService';
-import { BusinessRule } from '@/types';
+import { NextApiRequest, NextApiResponse } from 'next';
+import AIService from '../../../lib/aiService';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -10,75 +9,58 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { description, clients, workers, tasks, existingRules } = req.body;
 
-    if (!description) {
-      return res.status(400).json({ error: 'Rule description is required' });
+    if (!description || typeof description !== 'string') {
+      return res.status(400).json({ error: 'Description string is required' });
     }
 
-    // Check if Hugging Face API key is available
-    if (!process.env.HUGGINGFACE_API_KEY) {
-      console.log('Hugging Face API key not found, returning error');
-      return res.status(400).json({ 
-        error: 'Hugging Face API key not configured',
-        details: 'Please configure HUGGINGFACE_API_KEY in your environment variables'
+    console.log('Generate rules API called');
+    console.log('Processing description:', description);
+
+    // Check if API key is available
+    if (!process.env.GROQ_API_KEY) {
+      console.warn('GROQ_API_KEY not found in environment variables');
+      return res.status(500).json({ 
+        error: 'Groq API key not configured',
+        rule: null
       });
     }
 
-    const prompt = `You are an AI assistant that converts natural language descriptions into business rules for a resource allocation system.
-
-Available data:
-- Clients: ${clients?.length || 0} records
-- Workers: ${workers?.length || 0} records
-- Tasks: ${tasks?.length || 0} records
-- Existing rules: ${existingRules?.length || 0} rules
-
-User request: "${description}"
-
-Please analyze this request and create a business rule. Return a JSON response with this structure:
-{
-  "rule": {
-    "id": "unique-rule-id",
-    "type": "coRun|slotRestriction|loadLimit|phaseWindow|skillRequirement",
-    "name": "Human readable rule name",
-    "description": "Detailed description of the rule",
-    "parameters": {
-      // Rule-specific parameters
-    },
-    "priority": 1,
-    "enabled": true
-  },
-  "validation": {
-    "canApply": true|false,
-    "reason": "Why the rule can or cannot be applied",
-    "conflicts": ["list of conflicting rules if any"]
-  }
-}
-
-Rule types and their parameters:
-1. coRun: {"tasks": ["task1", "task2"], "required": true}
-2. slotRestriction: {"groupType": "client|worker", "groupName": "group", "minSlots": 2}
-3. loadLimit: {"workerGroup": "group", "maxSlotsPerPhase": 5}
-4. phaseWindow: {"taskId": "task1", "allowedPhases": [1,2,3]}
-5. skillRequirement: {"requiredSkills": ["skill1", "skill2"]}
-
-Examples:
-- "Tasks T12 and T14 must run together" → coRun rule
-- "Sales workers can only work 3 slots per phase" → loadLimit rule
-- "Premium clients need at least 2 available slots" → slotRestriction rule`;
-
-    const response = await AIService.callHuggingFaceAPI(prompt);
+    console.log('Calling Groq API for rule generation...');
+    const rules = await AIService.generateRule(description, clients || [], workers || [], tasks || [], existingRules || []);
     
-    if (!response) {
-      throw new Error('No response from Hugging Face');
+    console.log('Rule generation successful:', rules?.length || 0, 'rules');
+    
+    // Convert the first rule to the expected format
+    if (rules && rules.length > 0) {
+      const ruleText = rules[0];
+      const rule = {
+        id: `rule_${Date.now()}`,
+        type: 'custom',
+        name: `Generated Rule ${Date.now()}`,
+        description: ruleText,
+        parameters: {},
+        priority: (existingRules?.length || 0) + 1,
+        enabled: true
+      };
+      return res.status(200).json({ rule });
+    } else {
+      return res.status(200).json({ rule: null });
     }
 
-    const result = JSON.parse(response);
-    
-    res.status(200).json(result);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Rule generation error:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate rule',
-      details: error.message 
+    
+    if (error instanceof Error) {
+      return res.status(500).json({ 
+        error: 'Rule generation failed',
+        message: error.message,
+        rule: null
+      });
+    }
+    
+    return res.status(500).json({ 
+      error: 'Rule generation failed',
+      rule: null
     });
   }
 } 

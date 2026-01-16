@@ -1,5 +1,5 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { AIService } from '@/lib/aiService';
+import { NextApiRequest, NextApiResponse } from 'next';
+import AIService from '../../../lib/aiService';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -9,60 +9,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { clients, workers, tasks, existingRules } = req.body;
 
-    const prompt = `You are an AI assistant that analyzes resource allocation data and suggests business rules based on patterns and potential issues.
+    console.log('Rule recommendations API called');
 
-Available data:
-- Clients: ${clients?.length || 0} records
-- Workers: ${workers?.length || 0} records
-- Tasks: ${tasks?.length || 0} records
-- Existing rules: ${existingRules?.length || 0} rules
-
-Please analyze the data and suggest business rules that would improve the resource allocation system. Look for:
-
-1. Tasks that frequently appear together in client requests
-2. Workers that are consistently overloaded
-3. Skills gaps or coverage issues
-4. Phase conflicts or scheduling issues
-5. Priority imbalances
-6. Group-based patterns
-
-Return a JSON response with this structure:
-{
-  "recommendations": [
-    {
-      "id": "rec-1",
-      "type": "coRun|slotRestriction|loadLimit|phaseWindow|patternMatch|precedenceOverride",
-      "name": "Suggested rule name",
-      "description": "Why this rule is recommended",
-      "confidence": 0.85,
-      "parameters": {
-        // Rule-specific parameters
-      },
-      "reasoning": "Detailed explanation of why this rule makes sense",
-      "impact": "high|medium|low"
+    // Check if API key is available
+    if (!process.env.GROQ_API_KEY) {
+      console.warn('GROQ_API_KEY not found in environment variables');
+      return res.status(500).json({ 
+        error: 'Groq API key not configured',
+        recommendations: []
+      });
     }
-  ],
-  "summary": {
-    "totalRecommendations": 5,
-    "highImpact": 2,
-    "mediumImpact": 2,
-    "lowImpact": 1
-  }
-}
 
-Focus on high-impact recommendations that address real patterns in the data.`;
+    console.log('Calling Groq API for rule recommendations...');
+    const recommendations = await AIService.getRuleRecommendations(clients || [], workers || [], tasks || [], existingRules || []);
+    
+    console.log('Rule recommendations successful:', recommendations?.length || 0, 'recommendations');
+    return res.status(200).json({ 
+      recommendations: recommendations || [],
+      summary: { totalRecommendations: recommendations?.length || 0 }
+    });
 
-    const response = await AIService.callHuggingFaceAPI(prompt);
-    if (!response) {
-      throw new Error('No response from Hugging Face');
-    }
-    const result = JSON.parse(response);
-    res.status(200).json(result);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Rule recommendations error:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate recommendations',
-      details: error.message 
+    
+    if (error instanceof Error) {
+      return res.status(500).json({ 
+        error: 'Rule recommendations failed',
+        message: error.message,
+        recommendations: []
+      });
+    }
+    
+    return res.status(500).json({ 
+      error: 'Rule recommendations failed',
+      recommendations: []
     });
   }
 } 

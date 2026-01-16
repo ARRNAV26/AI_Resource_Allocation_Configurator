@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SearchResults } from '@/components/SearchResults';
 import {
   Brain,
   Sparkles,
@@ -244,21 +245,12 @@ export function AIPanel({ clients, workers, tasks, onClose, onSearchResults }: A
                     </Button>
                   </div>
 
-                  {searchResults && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-medium">Search Results</h3>
-                        <Badge variant="secondary">
-                          {searchResults.results?.length || 0} matches found
-                        </Badge>
-                      </div>
-
-                      <div className="bg-muted/50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                        <pre className="text-sm whitespace-pre-wrap">
-                          {JSON.stringify(searchResults, null, 2)}
-                        </pre>
-                      </div>
-                    </div>
+                  {searchResults && searchResults.results && (
+                    <SearchResults
+                      results={searchResults.results}
+                      entity={searchResults.criteria?.entity || 'clients'}
+                      query={searchQuery}
+                    />
                   )}
 
                   <div className="grid grid-cols-2 gap-2 text-sm">
